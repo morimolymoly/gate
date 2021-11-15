@@ -8,6 +8,8 @@ import { WalletNotConnectedError } from '@solana/wallet-adapter-base';
 import { getPhantomWallet } from '@solana/wallet-adapter-wallets';
 import { useWallet, WalletProvider, ConnectionProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { PublicKey } from '@solana/web3.js';
+import { Metadata } from '@metaplex/js/lib/programs/metadata';
 require('@solana/wallet-adapter-react-ui/styles.css');
 
 const wallets = [
@@ -16,6 +18,33 @@ const wallets = [
 ];
 
 const connection = new Connection('devnet');
+
+async function getMetaDataAddress(tokenMint: PublicKey): Promise<string> {
+  const METADATA_PREFIX = 'metadata';
+  const METADATA_PROGRAM = 'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s';
+  const metaProgamPublicKey = new PublicKey(METADATA_PROGRAM);
+  const metaProgamPublicKeyBuffer = metaProgamPublicKey.toBuffer();
+  const metaProgamPrefixBuffer = Buffer.from(METADATA_PREFIX);
+
+  const aaa = await PublicKey.findProgramAddress(
+    [metaProgamPrefixBuffer, metaProgamPublicKeyBuffer, tokenMint.toBuffer()],
+    metaProgamPublicKey
+  );
+
+  return aaa[0].toString();
+}
+
+async function getMetaData(pubkey: string | undefined): Promise<Metadata | undefined> {
+  try {
+    if(pubkey === undefined) {
+      throw console.error();
+    }
+    const ownedMetadata = await programs.metadata.Metadata.load(connection, pubkey);
+    return ownedMetadata;
+  } catch {
+    console.log('Failed to fetch metadata');
+  }
+}
 
 function App(): JSX.Element {
   const wallet = useWallet();
@@ -26,30 +55,43 @@ function App(): JSX.Element {
     if (!wallet.publicKey) throw new WalletNotConnectedError();
 
     const con = new web3.Connection("https://api.devnet.solana.com");
-    const filter: web3.TokenAccountsFilter =  {
+    const filter: web3.TokenAccountsFilter = {
       programId: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
     };
-    const test = await con.getTokenAccountsByOwner(wallet.publicKey, filter);
-    console.log(test.value[0].pubkey);
-    const tokenAddress = test.value[0].pubkey;
-    console.log(tokenAddress.toString());
+    const splAccounts = await con.getParsedTokenAccountsByOwner(wallet.publicKey, filter);
 
-    const run = async () => {
-      try {
-        const ownedMetadata = await programs.metadata.Metadata.load(connection, "8Yvyrz7AosXNyt2xocpbJdmDEqpM73pme66uoGG2rkwM");
-        console.log(ownedMetadata);
-      } catch {
-        console.log('Failed to fetch metadata');
-      }
-    };
-    run();
+    const nftAccounts = splAccounts.value.filter(({ account }) => {
+      const amount = account?.data?.parsed?.info?.tokenAmount?.uiAmount;
+      const decimals = account?.data?.parsed?.info?.tokenAmount?.decimals;
+
+      return decimals === 0 && amount >= 1;
+    });
+
+    const accountsMetaDataAddressP = await Promise.allSettled(
+      nftAccounts.map(({ account }) => {
+        const mint_address = account?.data?.parsed?.info?.mint;
+        if(mint_address) {
+          return getMetaDataAddress(new PublicKey(mint_address));
+        }
+      })
+    );
+
+    const accountsMetaDataAddress = accountsMetaDataAddressP
+      .filter(({ status }) => status === 'fulfilled')
+      .map((p) => (p as PromiseFulfilledResult<Promise<PublicKey> | undefined>)?.value);
+    
+    const metadata = await Promise.all(accountsMetaDataAddress.map(async (value) => await getMetaData((await value)?.toString())));
+    
+    metadata.forEach((p) => {
+      console.log(p?.data?.data?.uri);
+    });
   }
-  
+
   if (wallet.connected) {
     return (
       <div className="App">
         <button onClick={onClick}>
-              check tokens
+          check tokens
         </button>
       </div>
     );
