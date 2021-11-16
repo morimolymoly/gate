@@ -1,0 +1,33 @@
+{
+    "eslint.packageManager": "yarn",
+    "eslint.validate": [
+        "javascript",
+        "javascriptreact",
+        "typescript",
+        "typescriptreact"
+    ],
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "javascript.format.enable": false,
+    "typescript.format.enable": false,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": true
+    },
+    "[html]": {
+        "editor.formatOnSave": false,
+    },
+    "[rust]": {
+        "editor.formatOnSave": false,
+    },
+    "[javascript]": {
+        "editor.formatOnSave": true,
+    },
+    "[typescript]": {
+        "editor.formatOnSave": true,
+    },
+    "[typescriptreact]": {
+        "editor.formatOnSave": true,
+    },
+    "files.watcherExclude": {
+        "**/target": true
+    }
+}
